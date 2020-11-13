@@ -2,7 +2,7 @@
 SHELL := /bin/bash
 
 #Versioning
-DOCKER_EXCH_TAG := 2.41.0
+DOCKER_EXCH_TAG := 2.44.0
 PKG_URL_BASE := http://169.45.88.181/linux/ubuntu
 PKGS_URL := $(PKG_URL_BASE)/dists/xenial-testing/main/binary-amd64/Packages
 DEB_PKGS_URL := $(PKG_URL_BASE)/pool/main/h/horizon
@@ -54,6 +54,7 @@ E2EDEV_HOST_IP := $(shell hostname -I | awk '{print $$1}')
 AGBOT_SAPI_URL ?= https://localhost:8083
 ICP_HOST_IP ?= 0
 DOCKER_AGBOT_ADD_HOST ?= "localhost:127.0.0.1"
+ORG_ID ?= ""
 
 export PREBUILT_DOCKER_REG_URL ?= ""
 export PREBUILT_DOCKER_REG_USER ?= ""
@@ -119,6 +120,7 @@ run-agbot: agbot-docker-prereqs test-network
 		-e "EXCH_ROOTPW=$(EXCH_ROOTPW)" \
 		-e "AGBOT_NAME=$(AGBOT_NAME)" \
 		-e "AGBOT_SAPI_URL=$(AGBOT_SAPI_URL)" \
+		-e "ORG_ID=$(ORG_ID)" \
 		-e "ICP_HOST_IP=$(ICP_HOST_IP)" \
 		-e "DOCKER_REG_CNAME=$(DOCKER_REG_CNAME)" \
 		-e "DOCKER_REG_USER=$(DOCKER_REG_USER)" \
@@ -263,7 +265,7 @@ agbot-prereq-build-anax: $(ANAX_SOURCE)/anax
 		cd $(ANAX_SOURCE) && make anax-k8s-image; \
 	fi
 
-agbot-prereq-download-anax: 
+agbot-prereq-download-anax:
 	gov/setup_agbot.sh
 
 agbot-docker-prereqs: get-anax

@@ -254,6 +254,24 @@ func Test_Validate_Succeed7(t *testing.T) {
 	}
 }
 
+func Test_Validate_Succeed8(t *testing.T) {
+
+	// no or one or many whitespaces around the open and close parentheses.
+	textConstraintLanguagePlugin := NewTextConstraintLanguagePlugin()
+	constraintStrings := []string{"(version> 1 OR version <1 OR version >=0) AND  ( version<= 0 OR (  USDA ==true OR USDA= false  ) )", " (version =1.1.1 AND xyz !=123) "}
+	ce := constraintStrings
+
+	var validated bool
+	var err error
+
+	validated, _, err = textConstraintLanguagePlugin.Validate(interface{}(ce))
+	if validated == false {
+		t.Errorf("Validation failed but should not, err: %v", err)
+	} else if err != nil {
+		t.Errorf("Validation succeeded but also returned an error: %v", err)
+	}
+}
+
 func Test_GetNextExpression_Succeed(t *testing.T) {
 	textConstraintLanguagePlugin := NewTextConstraintLanguagePlugin()
 	ce := "version == 1.1.1 OR USDA == true AND book == \"one fish two fish\" && author == \"Suess\""
@@ -290,6 +308,22 @@ func Test_GetNextExpression_Succeed(t *testing.T) {
 	}
 
 	ce = "iame2edev==true && cpu==3 AND hello==\"world\" && hello in \"'hi world', 'test'\""
+	rem = ce
+	for {
+		_, rem, err = textConstraintLanguagePlugin.GetNextExpression(rem)
+		if err != nil {
+			t.Errorf("Error parsing constraint expression %v with GetNextExpression: %v", ce, err)
+		}
+		if rem == "" {
+			break
+		}
+		_, rem, err = textConstraintLanguagePlugin.GetNextOperator(rem)
+		if err != nil {
+			t.Errorf("Error parsing constraint expression %v with GetNextOperator: %v", ce, err)
+		}
+	}
+
+	ce = "cpu < 4 && intValue >= 3 || inininintValue == \"ininint\" && inVersion in [0.0.0,1.4.3]"
 	rem = ce
 	for {
 		_, rem, err = textConstraintLanguagePlugin.GetNextExpression(rem)

@@ -72,7 +72,7 @@ func DoIt(org, pattern, nodeIdTok, userPw, inputFile string, nodeOrgFromFlag str
 	msgPrinter := i18n.GetMessagePrinter()
 
 	// check the input
-	org, pattern, waitService, waitOrg = verifyRegisterParamters(org, pattern, nodeOrgFromFlag, patternFromFlag, waitService, waitOrg)
+	org, pattern, waitService, waitOrg = verifyRegisterParamters(org, pattern, nodeOrgFromFlag, patternFromFlag, waitService, waitOrg, nodeIdTok)
 
 	cliutils.SetWhetherUsingApiKey(nodeIdTok) // if we have to use userPw later in NodeCreate(), it will set this appropriately for userPw
 	var userInputFileObj *common.UserInputFile
@@ -361,12 +361,18 @@ func DoIt(org, pattern, nodeIdTok, userPw, inputFile string, nodeOrgFromFlag str
 
 	// Now drop into the long wait for a service to get started on the node.
 	if waitService != "" {
-		msgPrinter.Printf("Horizon node is registered. Workload services should begin executing shortly.")
-		msgPrinter.Println()
+		if nodeType == persistence.DEVICE_TYPE_CLUSTER {
+			msgPrinter.Printf("NOTE: The -s flag is currently not supported for nodeType: %s. Node registration will complete without waiting for the service to start.", nodeType)
+			msgPrinter.Println()
+			msgPrinter.Printf("Horizon node is registered. Workload agreement negotiation should begin shortly. Run 'hzn agreement list' to view.")
+			msgPrinter.Println()
+		} else {
+			msgPrinter.Printf("Horizon node is registered. Workload services should begin executing shortly.")
+			msgPrinter.Println()
 
-		// Wait for the service to be started.
-		WaitForService(waitOrg, waitService, waitTimeout, pattern, pat, nodeType, anaxArch, org, nodeIdTok)
-
+			// Wait for the service to be started.
+			WaitForService(waitOrg, waitService, waitTimeout, pattern, pat, nodeType, anaxArch, org, nodeIdTok)
+		}
 	} else {
 		msgPrinter.Printf("Horizon node is registered. Workload agreement negotiation should begin shortly. Run 'hzn agreement list' to view.")
 		msgPrinter.Println()
@@ -419,7 +425,7 @@ func CreateNode(nodeDevice api.HorizonDevice, timeout int) error {
 		if err != nil {
 			c <- err.Error()
 		} else if httpCode != 200 && httpCode != 201 && body != "" {
-			c <- msgPrinter.Sprintf("%v", body)
+			c <- fmt.Sprintf("%v", body)
 		}
 		c <- fmt.Sprintf("%d", httpCode)
 	}()
@@ -583,7 +589,7 @@ func SetConfigState(timeout int, inputFile string) error {
 	}
 }
 
-func verifyRegisterParamters(org, pattern, nodeOrgFromFlag string, patternFromFlag string, waitService string, waitOrg string) (string, string, string, string) {
+func verifyRegisterParamters(org, pattern, nodeOrgFromFlag, patternFromFlag, waitService, waitOrg, nodeIdTok string) (string, string, string, string) {
 	// get message printer
 	msgPrinter := i18n.GetMessagePrinter()
 
@@ -620,6 +626,28 @@ func verifyRegisterParamters(org, pattern, nodeOrgFromFlag string, patternFromFl
 			cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("When registering with a node policy, '*' is not a valid value for -s."))
 		} else if waitOrg != "*" {
 			cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("When registering with a pattern, if -s is '*' (i.e. all the top-level services in the pattern will be monitored), --serviceorg must be omitted."))
+		}
+	}
+
+	var nodeId string
+	if nodeId, _ = cliutils.SplitIdToken(nodeIdTok); nodeId == "" {
+		// get node info from anax
+		horDevice := api.HorizonDevice{}
+		cliutils.HorizonGet("node", []int{200}, &horDevice, false)
+		if horDevice.Id == nil {
+			cliutils.Fatal(cliutils.ANAX_NOT_CONFIGURED_YET, msgPrinter.Sprintf("Failed to get proper response from the Horizon agent"))
+		}
+		nodeId = *horDevice.Id
+	}
+
+	if nodeId != "" {
+		illegalInput, err := api.InputIsIllegal(nodeId)
+		if err != nil {
+			cliutils.Fatal(cliutils.CLI_GENERAL_ERROR, msgPrinter.Sprintf("could not validate node ID '%s': %v", nodeId, err))
+		} else if illegalInput != "" {
+			cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("invalid node ID: A-Za-z0-9, unicode characters and special symbols !-*+()?.,:&@ are only allowed"))
+		} else if strings.Contains(nodeId, " ") {
+			cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("invalid node ID: Whitespace is not permitted"))
 		}
 	}
 
@@ -807,7 +835,7 @@ func CreateInputFile(nodeOrg, pattern, arch, nodeIdTok, inputFile string) {
 		if len(userInput) > 0 {
 			svcInput := policy.UserInput{ServiceOrgid: s.Org, ServiceUrl: s.URL, ServiceVersionRange: "[0.0.0,INFINITY)", Inputs: make([]policy.Input, len(userInput))}
 			for i, u := range userInput {
-				svcInput.Inputs[i] = policy.Input{Name: u.Name, Value: u.DefaultValue, Type: u.Type}
+				svcInput.Inputs[i] = policy.Input{Name: u.Name, Value: u.DefaultValue}
 			}
 			svcInputs = append(svcInputs, svcInput)
 		}

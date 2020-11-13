@@ -34,18 +34,25 @@ else
 	@true
 endif
 
+NO_DEBUG_PKGS := $(shell ../../../tools/no-debug-pkg)
+ifeq (${NO_DEBUG_PKGS},true)
+	RPM_OPTS =--define="%debug_package %{nil}"
+endif
+
 # Remember to up VERSION above. If building the rpm on mac, first: brew install rpm
 # Note: during rpmbuild on mac, you may get this benign msg: error: Couldn't exec /usr/local/Cellar/rpm/4.14.1_1/lib/rpm/elfdeps: No such file or directory
 rpmbuild: require-version
 	opsys=Linux arch=$(arch) $(MAKE) -C ../../.. cli/hzn
-	mkdir -p fs/usr/horizon/bin fs/etc/bash_completion.d fs/usr/share/man/man1
+	mkdir -p fs/usr/horizon/bin fs/usr/horizon/cluster fs/etc/bash_completion.d fs/usr/share/man/man1
 	@# If you add files copied, add them to .gitignore too
-	cp ../../../cli/hzn fs/usr/horizon/bin
-	cp ../../../anax-in-container/horizon-container fs/usr/horizon/bin
-	cp ../../../agent-install/agent-install.sh fs/usr/horizon/bin
-	cp ../../../agent-install/agent-uninstall.sh fs/usr/horizon/bin
-	cp ../../../agent-install/edgeNodeFiles.sh fs/usr/horizon/bin
-	cp ../../../cli/bash_completion/hzn_bash_autocomplete.sh fs/etc/bash_completion.d
+	cp ../../../cli/hzn fs/usr/horizon/bin/
+	cp ../../../anax-in-container/horizon-container fs/usr/horizon/bin/
+	cp ../../../agent-install/agent-install.sh fs/usr/horizon/bin/
+	cp ../../../agent-install/agent-uninstall.sh fs/usr/horizon/bin/
+	cp ../../../agent-install/edgeNodeFiles.sh fs/usr/horizon/bin/
+	cp ../../../agent-install/k8s/deployment-template.yml fs/usr/horizon/cluster/
+	cp ../../../agent-install/k8s/persistentClaim-template.yml fs/usr/horizon/cluster/
+	cp ../../../cli/bash_completion/hzn_bash_autocomplete.sh fs/etc/bash_completion.d/
 	mkdir -p fs/usr/share/man/man1
 	gzip --stdout ../../../cli/man1/hzn.1 > fs/usr/share/man/man1/hzn.1.gz
 	for m in ../../../cli/man1/hzn.1.*; do \
@@ -63,7 +70,7 @@ rpmbuild: require-version
 	tar -czf $(RPMROOT)/SOURCES/$(RPMNAME)-$(VERSION).tar.gz .
 	rm -rf $(RPMROOT)/BUILD/horizon-cli-*
 	rm -f $(RPMROOT)/SRPMS/$(RPMNAME)*rpm $(RPMROOT)/RPMS/$(rpm_arch)/$(RPMNAME)*rpm $(RPMROOT)/RPMS/$(rpm_arch)/$(RPMNAME)*rpm.gz
-	rpmbuild --target $(rpm_arch)-linux -ba $(RPMNAME).spec
+	rpmbuild --target $(rpm_arch)-linux $(RPM_OPTS) -ba $(RPMNAME).spec
 	gzip --keep $(RPMROOT)/RPMS/$(rpm_arch)/$(RPMNAME)-$(VERSION)-$(BUILD_NUMBER).$(rpm_arch).rpm
 	rm -f $(RPMNAME)-$(VERSION)   # remove the sym link
 

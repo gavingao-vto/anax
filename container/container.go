@@ -258,6 +258,9 @@ func (w *ContainerWorker) finalizeDeployment(agreementId string, deployment *con
 		labels[LABEL_PREFIX+".service_name"] = serviceName
 		labels[LABEL_PREFIX+".variation"] = service.VariationLabel
 		labels[LABEL_PREFIX+".deployment_description_hash"] = deploymentHash
+		if w.IsDevInstance() {
+			labels[LABEL_PREFIX+".dev_service"] = "true"
+		}
 
 		var logConfig docker.LogConfig
 
@@ -325,6 +328,11 @@ func (w *ContainerWorker) finalizeDeployment(agreementId string, deployment *con
 			if !strings.HasPrefix(config.ENVVAR_PREFIX+"ETHEREUM_ACCOUNT", v) {
 				serviceConfig.Config.Env = append(serviceConfig.Config.Env, v)
 			}
+		}
+
+		// overwrite container's entrypoint if it's set in deployment
+		if len(service.Entrypoint) != 0 {
+			serviceConfig.Config.Entrypoint = service.Entrypoint
 		}
 
 		// add the environment variable overrides
@@ -438,10 +446,15 @@ type ContainerWorker struct {
 	iptables          *iptables.IPTables
 	authMgr           *resource.AuthenticationManager
 	pattern           string
+	isDevInstance     bool
 }
 
 func (cw *ContainerWorker) GetClient() *docker.Client {
 	return cw.client
+}
+
+func (cw *ContainerWorker) IsDevInstance() bool {
+	return cw.isDevInstance
 }
 
 func (cw *ContainerWorker) GetAuthenticationManager() *resource.AuthenticationManager {
@@ -456,12 +469,13 @@ func CreateCLIContainerWorker(config *config.HorizonConfig) (*ContainerWorker, e
 	}
 
 	return &ContainerWorker{
-		BaseWorker: worker.NewBaseWorker("mock", config, nil),
-		db:         nil,
-		client:     client,
-		iptables:   nil,
-		authMgr:    resource.NewAuthenticationManager(config.GetFileSyncServiceAuthPath()),
-		pattern:    "",
+		BaseWorker:    worker.NewBaseWorker("mock", config, nil),
+		db:            nil,
+		client:        client,
+		iptables:      nil,
+		authMgr:       resource.NewAuthenticationManager(config.GetFileSyncServiceAuthPath()),
+		pattern:       "",
+		isDevInstance: true,
 	}, nil
 }
 

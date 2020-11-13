@@ -38,6 +38,7 @@ const DEVTOOL_HZN_DEVICE_ID = "HZN_DEVICE_ID"
 const DEVTOOL_HZN_PATTERN = "HZN_PATTERN"
 
 const DEVTOOL_HZN_FSS_IMAGE_TAG = "HZN_DEV_FSS_IMAGE_TAG"
+const DEVTOOL_HZN_FSS_IMAGE_REPO = "HZN_DEV_FSS_IMAGE_REPO"
 const DEVTOOL_HZN_FSS_CSS_PORT = "HZN_DEV_FSS_CSS_PORT"
 const DEVTOOL_HZN_FSS_WORKING_DIR = "HZN_DEV_FSS_WORKING_DIR"
 const DEFAULT_DEVTOOL_HZN_FSS_WORKING_DIR = "/tmp/hzndev/"
@@ -727,12 +728,14 @@ func stopContainers(dc *common.DeploymentConfig, cw *container.ContainerWorker, 
 
 		cliutils.Verbose(msgPrinter.Sprintf("Found containers %v", containers))
 
-		// Locate the container and stop it.
+		// Locate the dev container(s) and stop it.
 		for _, c := range containers {
-			msId := c.Labels[container.LABEL_PREFIX+".agreement_id"]
-			msgPrinter.Printf("Stop %v: %v with instance id prefix %v", logName, dc.CLIString(), msId)
-			msgPrinter.Println()
-			cw.ResourcesRemove([]string{msId})
+			if _, isDevService := c.Labels[container.LABEL_PREFIX+".dev_service"]; isDevService {
+				msId := c.Labels[container.LABEL_PREFIX+".agreement_id"]
+				msgPrinter.Printf("Stop %v: %v with instance id prefix %v", logName, dc.CLIString(), msId)
+				msgPrinter.Println()
+				cw.ResourcesRemove([]string{msId})
+			}
 		}
 	}
 	return nil

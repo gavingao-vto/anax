@@ -3,6 +3,7 @@ package sync_service
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/open-horizon/anax/cli/cliconfig"
 	"github.com/open-horizon/anax/cli/cliutils"
 	"github.com/open-horizon/anax/config"
 	"github.com/open-horizon/anax/i18n"
@@ -91,7 +92,7 @@ func ObjectList(org string, userPw string, objType string, objId string, destPol
 	}
 
 	if objType == "" && objId != "" {
-		cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("must specify objectType if set objectId"))
+		cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("must specify --type with --id"))
 	}
 
 	if destType == "" && destId != "" {
@@ -194,9 +195,12 @@ func ObjectList(org string, userPw string, objType string, objId string, destPol
 			}
 			output = cliutils.MarshalIndent(mmsObjects, "mms object list")
 		} else {
-			output = cliutils.MarshalIndent(objectsMeta, "mms object list")
+			var err1 error
+			output, err1 = cliutils.DisplayAsJson(objectsMeta)
+			if err1 != nil {
+				cliutils.Fatal(cliutils.JSON_PARSING_ERROR, i18n.GetMessagePrinter().Sprintf("failed to marshal 'hzn mms object list' output: %v", err1))
+			}
 		}
-
 	}
 
 	msgPrinter.Printf("Listing objects in org %v:", org)
@@ -291,10 +295,7 @@ func ObjectPublish(org string, userPw string, objType string, objId string, objP
 	// object metadata file based on the other input paramaters.
 	var objectMeta common.MetaData
 	if objMetadataFile != "" {
-		if _, err := os.Stat(objMetadataFile); err != nil {
-			cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("unable to read definition file %v: %v", objMetadataFile, err))
-		}
-		metaBytes := cliutils.ReadJsonFile(objMetadataFile)
+		metaBytes := cliconfig.ReadJsonFileWithLocalConfig(objMetadataFile)
 		if err := json.Unmarshal(metaBytes, &objectMeta); err != nil {
 			cliutils.Fatal(cliutils.JSON_PARSING_ERROR, msgPrinter.Sprintf("failed to unmarshal definition file %s: %v", objMetadataFile, err))
 		}

@@ -29,6 +29,8 @@ const HZN_EXCHANGE_URL = "HZN_EXCHANGE_URL"
 const HZN_EXCHANGE_CA_CERT = "HZN_EXCHANGE_CA_CERT"
 
 const EX_ROOT_USER = "root"
+const EX_ORG_ADMIN = "exchange_org_admin"
+const EX_HUB_ADMIN = "exchange_hub_admin"
 
 // HorizonAuthenticate is the Horizon plugin for authentication used by the Cloud sync service (CSS). This plugin
 // can be used in environments where authentication is handled by something else in the network before
@@ -159,7 +161,7 @@ func (auth *HorizonAuthenticate) authenticateWithExchange(otherOrg string, appKe
 			}
 		} else {
 			authCode = security.AuthEdgeNode
-			authOrg = parts[0] //orgId
+			authOrg = parts[0]                 //orgId
 			authId = parts[1] + "/" + parts[2] //destinationType/destinationId (pattern/nodeId)
 		}
 
@@ -190,9 +192,9 @@ func (auth *HorizonAuthenticate) authenticateWithExchange(otherOrg string, appKe
 			if trace.IsLogging(logger.TRACE) {
 				trace.Debug(cssALS(fmt.Sprintf("attempting authentication request as a user %v", appKey)))
 			}
-			// appkey: {org}/{username} or {org}/iamapikey. 
+			// appkey: {org}/{username} or {org}/iamapikey.
 			// parts[1] is {username} or iamapikey, parts[0] is {orgId}
-			if admin, username, err := auth.verifyUserIdentity(parts[1], parts[0], appSecret, ExchangeURL()); err != nil {
+			if exchangeRole, username, err := auth.verifyUserIdentity(parts[1], parts[0], appSecret, ExchangeURL()); err != nil {
 				if log.IsLogging(logger.WARNING) {
 					log.Warning(cssALS(fmt.Sprintf("unable to verify identity %v as user, error %v", appKey, err)))
 				}
@@ -200,24 +202,27 @@ func (auth *HorizonAuthenticate) authenticateWithExchange(otherOrg string, appKe
 					trace.Debug(cssALS(fmt.Sprintf("attempting authentication request as an exchange node %v", appKey)))
 				}
 				// Check if the identity is an exchange node
-				// appkey: {org}/{nodeId}. appSecret is {nodeToken}. 
+				// appkey: {org}/{nodeId}. appSecret is {nodeToken}.
 				// parts[0] is {orgId}, parts[1] is {nodeId}
 				if err := auth.verifyNodeIdentity(parts[1], parts[0], appSecret, ExchangeURL()); err != nil {
 					if log.IsLogging(logger.ERROR) {
 						log.Error(cssALS(fmt.Sprintf("unable to verify identity %v as exchange node, error %v", appKey, err)))
 					}
 				} else {
+					// exchange node is AuthNodeUser. Without configuring ACLs, AuthNodeUser only has read access to public objects of any org
 					authCode = security.AuthNodeUser
 					authOrg = parts[0]
 					authId = parts[1]
 				}
-			} else if admin {
-				// root/root:{pwd} is super user across all orgs
+			} else if exchangeRole == EX_ROOT_USER || exchangeRole == EX_HUB_ADMIN {
+				// root/root:{pwd} and hub admin are super users across all orgs
 				authCode = security.AuthSyncAdmin
 				authOrg = parts[0]
 				authId = username
 			} else {
-				authCode = security.AuthUser
+				// exchange regular users are always mapped to authAdmin so that ACLs do not need to be configured in order for a regular user to get read/write access to objects in their own org.
+				// It also gives them read access to public objects in other orgs without needing an ACL
+				authCode = security.AuthAdmin
 				authOrg = parts[0]
 				authId = username
 			}
@@ -239,6 +244,7 @@ func (auth *HorizonAuthenticate) authenticateWithExchange(otherOrg string, appKe
 type UserDefinition struct {
 	Password    string `json:"password"`
 	Admin       bool   `json:"admin"`
+	HubAdmin    bool   `json:"hubAdmin"`
 	Email       string `json:"email"`
 	LastUpdated string `json:"lastUpdated,omitempty"`
 	UpdatedBy   string `json:"updatedBy,omitempty"`
@@ -249,9 +255,9 @@ type GetUsersResponse struct {
 	LastIndex int                       `json:"lastIndex"`
 }
 
-// Returns true, ${username}, nil for users that are admins. Returns false, ${username}, nil for users that are valid but aren't admins,
-// and false, "", error otherwise.
-func (auth *HorizonAuthenticate) verifyUserIdentity(id string, orgId string, appSecret string, exURL string) (bool, string, error) {
+// Returns ${exchange_auth}, ${username}, nil for users that are valid user. Returns "", "", error for invalid user
+// ${exchange_auth} values: EX_ROOT_USER, EX_HUB_ADMIN, EX_ORG_ADMIN, ""
+func (auth *HorizonAuthenticate) verifyUserIdentity(id string, orgId string, appSecret string, exURL string) (string, string, error) {
 
 	// Log which API we're about to use.
 	url := fmt.Sprintf("%v/orgs/%v/users/%v", exURL, orgId, id)
@@ -269,7 +275,7 @@ func (auth *HorizonAuthenticate) verifyUserIdentity(id string, orgId string, app
 
 	// If there was an error invoking the HTTP API, return it.
 	if err != nil {
-		return false, "", err
+		return "", "", err
 	}
 
 	// Log the HTTP response code.
@@ -280,42 +286,47 @@ func (auth *HorizonAuthenticate) verifyUserIdentity(id string, orgId string, app
 	// If the response code was not expected, then return the error.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		if resp.StatusCode == 401 {
-			return false, "", errors.New(fmt.Sprintf("unable to verify user %v in the exchange, HTTP code %v, either the user is undefined or the user's password is incorrect.", user, resp.StatusCode))
+			return "", "", errors.New(fmt.Sprintf("unable to verify user %v in the exchange, HTTP code %v, either the user is undefined or the user's password is incorrect.", user, resp.StatusCode))
 		} else {
-			return false, "", errors.New(fmt.Sprintf("unable to verify user %v in the exchange, HTTP code %v", user, resp.StatusCode))
+			return "", "", errors.New(fmt.Sprintf("unable to verify user %v in the exchange, HTTP code %v", user, resp.StatusCode))
 		}
 	} else {
 		users := new(GetUsersResponse)
 		if bodyBytes, err := ioutil.ReadAll(resp.Body); err != nil {
-			return false, "", errors.New(fmt.Sprintf("unable to read HTTP response to %v, error %v", apiMsg, err))
+			return "", "", errors.New(fmt.Sprintf("unable to read HTTP response to %v, error %v", apiMsg, err))
 		} else if err = json.Unmarshal(bodyBytes, users); err != nil {
-			return false, "", errors.New(fmt.Sprintf("failed to unmarshal exchange body response from %s to user: %v", apiMsg, err))
+			return "", "", errors.New(fmt.Sprintf("failed to unmarshal exchange body response from %s to user: %v", apiMsg, err))
 		} else {
-			for key := range users.Users {
+			for key, userInfo := range users.Users {
 				// key is {orgid}/{username}
 				orgAndUsername := strings.Split(key, "/")
 				if len(orgAndUsername) != 2 {
-					return false, "", errors.New(fmt.Sprintf("exchange user %s in invalid format, should be {orgId}/{username}", key))
+					return "", "", errors.New(fmt.Sprintf("exchange user %s in invalid format, should be {orgId}/{username}", key))
 				}
 				exOrgId := orgAndUsername[0]
 				exUsername := orgAndUsername[1]
 
-				// authAdmin for root/root:{pwd}
 				if exOrgId == EX_ROOT_USER && exUsername == EX_ROOT_USER {
-					// exchange root user, should be authAdmin in CSS
-					return true, EX_ROOT_USER, nil
-
+					// exchange root user (root/root:{pwd}), should be authSyncAdmin in CSS
+					return EX_ROOT_USER, EX_ROOT_USER, nil
+				} else if userInfo.HubAdmin {
+					// hubAdmin should be authSyncAdmin in CSS
+					return EX_HUB_ADMIN, exUsername, nil
+				} else if userInfo.Admin {
+					// exchange org admin should be authAdmin in CSS
+					return EX_ORG_ADMIN, exUsername, nil
+				} else if exOrgId == orgId {
+					// authUser for regular user {org}/iamapikey:{apikey} ({org}/{username}:{pwd})
+					return "", exUsername, nil
+				} else {
+					return "", "", errors.New(fmt.Sprintf("no exchange user found %v", apiMsg))
 				}
 
-				// authUser for regular user {org}/iamapikey:{apikey} ({org}/{username}:{pwd})
-				if exOrgId == orgId {
-					return false, exUsername, nil
-				}
 			}
 
 		}
 
-		return false, "", errors.New(fmt.Sprintf("no exchange user found %v", apiMsg))
+		return "", "", errors.New(fmt.Sprintf("no exchange user found %v", apiMsg))
 
 	}
 }

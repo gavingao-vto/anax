@@ -116,21 +116,27 @@ Environment Variables:
 	exOrgListOrg := exOrgListCmd.Arg("org", msgPrinter.Sprintf("List this one organization.")).String()
 	exOrgListLong := exOrgListCmd.Flag("long", msgPrinter.Sprintf("Display detailed info of orgs")).Short('l').Bool()
 	exOrgCreateCmd := exOrgCmd.Command("create", msgPrinter.Sprintf("Create the organization resource in the Horizon Exchange."))
-	exOrgCreateOrg := exOrgCreateCmd.Arg("org", msgPrinter.Sprintf("Create this organization.")).Required().String()
+	exOrgCreateOrg := exOrgCreateCmd.Arg("org", msgPrinter.Sprintf("Create this organization and assign it to an agbot.")).Required().String()
 	exOrgCreateLabel := exOrgCreateCmd.Flag("label", msgPrinter.Sprintf("Label for new organization.")).Short('l').String()
 	exOrgCreateDesc := exOrgCreateCmd.Flag("description", msgPrinter.Sprintf("Description for new organization.")).Short('d').Required().String()
+	exOrgCreateTags := exOrgCreateCmd.Flag("tag", msgPrinter.Sprintf("Tag for new organization. The format is mytag1=myvalue1. This flag can be repeated to specify multiple tags.")).Short('t').Strings()
 	exOrgCreateHBMin := exOrgCreateCmd.Flag("heartbeatmin", msgPrinter.Sprintf("The minimum number of seconds between agent heartbeats to the Exchange.")).Int()
 	exOrgCreateHBMax := exOrgCreateCmd.Flag("heartbeatmax", msgPrinter.Sprintf("The maximum number of seconds between agent heartbeats to the Exchange. During periods of inactivity, the agent will increase the interval between heartbeats by increments of --heartbeatadjust.")).Int()
 	exOrgCreateHBAdjust := exOrgCreateCmd.Flag("heartbeatadjust", msgPrinter.Sprintf("The number of seconds to increment the agent's heartbeat interval.")).Int()
+	exOrgCreateMaxNodes := exOrgCreateCmd.Flag("max-nodes", msgPrinter.Sprintf("The maximum number of nodes this organization is allowed to have. The value cannot exceed the Exchange global limit. The default is 0 which means no organization limit.")).Int()
+	exOrgCreateAddToAgbot := exOrgCreateCmd.Flag("agbot", msgPrinter.Sprintf("Add the organization to this agbot so that it will be responsible for deploying services in this org. The agbot will deploy services to nodes in this org, using the patterns and deployment policies in this org. If omitted, the first agbot found in the exchange will become responsible for this org. The format is 'agbot_org/agbot_id'.")).Short('a').String()
 	exOrgUpdateCmd := exOrgCmd.Command("update", msgPrinter.Sprintf("Update the organization resource in the Horizon Exchange."))
 	exOrgUpdateOrg := exOrgUpdateCmd.Arg("org", msgPrinter.Sprintf("Update this organization.")).Required().String()
 	exOrgUpdateLabel := exOrgUpdateCmd.Flag("label", msgPrinter.Sprintf("New label for organization.")).Short('l').String()
 	exOrgUpdateDesc := exOrgUpdateCmd.Flag("description", msgPrinter.Sprintf("New description for organization.")).Short('d').String()
-	exOrgUpdateHBMin := exOrgUpdateCmd.Flag("heartbeatmin", msgPrinter.Sprintf("New minimum number of seconds the between agent heartbeats to the Exchange.")).Int()
-	exOrgUpdateHBMax := exOrgUpdateCmd.Flag("heartbeatmax", msgPrinter.Sprintf("New maximum number of seconds between agent heartbeats to the Exchange.")).Int()
-	exOrgUpdateHBAdjust := exOrgUpdateCmd.Flag("heartbeatadjust", msgPrinter.Sprintf("New value for the number of seconds to increment the agent's heartbeat interval.")).Int()
+	exOrgUpdateTags := exOrgUpdateCmd.Flag("tag", msgPrinter.Sprintf("New tag for organization. The format is mytag1=myvalue1. This flag can be repeated to specify multiple tags. Use '-t \"\"' once to remove all the tags.")).Short('t').Strings()
+	exOrgUpdateHBMin := exOrgUpdateCmd.Flag("heartbeatmin", msgPrinter.Sprintf("New minimum number of seconds the between agent heartbeats to the Exchange. The default negative integer -1 means no change to this attribute.")).Default("-1").Int()
+	exOrgUpdateHBMax := exOrgUpdateCmd.Flag("heartbeatmax", msgPrinter.Sprintf("New maximum number of seconds between agent heartbeats to the Exchange. The default negative integer -1 means no change to this attribute.")).Default("-1").Int()
+	exOrgUpdateHBAdjust := exOrgUpdateCmd.Flag("heartbeatadjust", msgPrinter.Sprintf("New value for the number of seconds to increment the agent's heartbeat interval. The default negative integer -1 means no change to this attribute.")).Default("-1").Int()
+	exOrgUpdateMaxNodes := exOrgUpdateCmd.Flag("max-nodes", msgPrinter.Sprintf("The new maximum number of nodes this organization is allowed to have. The value cannot exceed the Exchange global limit. The default negative integer -1 means no change.")).Default("-1").Int()
 	exOrgDelCmd := exOrgCmd.Command("remove", msgPrinter.Sprintf("Remove an organization resource from the Horizon Exchange."))
 	exOrgDelOrg := exOrgDelCmd.Arg("org", msgPrinter.Sprintf("Remove this organization.")).Required().String()
+	exOrgDelFromAgbot := exOrgDelCmd.Flag("agbot", msgPrinter.Sprintf("The agbot to remove the deployment policy from. If omitted, the first agbot found in the exchange will be used. The format is 'agbot_org/agbot_id'.")).Short('a').String()
 	exOrgDelForce := exOrgDelCmd.Flag("force", msgPrinter.Sprintf("Skip the 'are you sure?' prompt.")).Short('f').Bool()
 
 	exUserCmd := exchangeCmd.Command("user", msgPrinter.Sprintf("List and manage users in the Horizon Exchange."))
@@ -358,7 +364,7 @@ Environment Variables:
 	nodepolicyFlag := registerCmd.Flag("policy", msgPrinter.Sprintf("A JSON file that sets or overrides the node policy for this node that will be used for policy based agreement negotiation.")).String()
 	org := registerCmd.Arg("nodeorg", msgPrinter.Sprintf("The Horizon exchange organization ID that the node should be registered in. Mutually exclusive with -o and -p.")).String()
 	pattern := registerCmd.Arg("pattern", msgPrinter.Sprintf("The Horizon exchange pattern that describes what workloads that should be deployed to this node. If the pattern is from a different organization than the node, use the 'other_org/pattern' format. Mutually exclusive with -o and -p.")).String()
-	waitServiceFlag := registerCmd.Flag("service", msgPrinter.Sprintf("Wait for the named service to start executing on this node. When registering with a pattern, use '*' to watch all the services in the pattern. When registering with a policy, '*' is not a valid value for -s.")).Short('s').String()
+	waitServiceFlag := registerCmd.Flag("service", msgPrinter.Sprintf("Wait for the named service to start executing on this node. When registering with a pattern, use '*' to watch all the services in the pattern. When registering with a policy, '*' is not a valid value for -s. This flag is not supported for edge cluster nodes.")).Short('s').String()
 	waitServiceOrgFlag := registerCmd.Flag("serviceorg", msgPrinter.Sprintf("The org of the service to wait for on this node. If '-s *' is specified, then --serviceorg must be omitted.")).String()
 	waitTimeoutFlag := registerCmd.Flag("timeout", msgPrinter.Sprintf("The number of seconds for the --service to start. The default is 60 seconds, beginning when registration is successful. Ignored if --service is not specified.")).Short('t').Default("60").Int()
 
@@ -388,7 +394,7 @@ Environment Variables:
 	policyListCmd := policyCmd.Command("list", msgPrinter.Sprintf("Display this edge node's policy."))
 	policyNewCmd := policyCmd.Command("new", msgPrinter.Sprintf("Display an empty policy template that can be filled in."))
 	policyUpdateCmd := policyCmd.Command("update", msgPrinter.Sprintf("Create or replace the node's policy. The node's built-in properties cannot be modified or deleted by this command, with the exception of openhorizon.allowPrivileged."))
-	policyUpdateInputFile := policyUpdateCmd.Flag("input-file", msgPrinter.Sprintf("The JSON input file name containing the node policy.")).Short('f').Required().String()
+	policyUpdateInputFile := policyUpdateCmd.Flag("input-file", msgPrinter.Sprintf("The JSON input file name containing the node policy. Specify -f- to read from stdin.")).Short('f').Required().String()
 	policyPatchCmd := policyCmd.Command("patch", msgPrinter.Sprintf("(DEPRECATED) This command is deprecated. Please use 'hzn policy update' to update the node policy. This command is used to update either the node policy properties or the constraints, but not both."))
 	policyPatchInput := policyPatchCmd.Arg("patch", msgPrinter.Sprintf("The new constraints or properties in the format '%s' or '%s'.", "{\"constraints\":[<constraint list>]}", "{\"properties\":[<property list>]}")).Required().String()
 	policyRemoveCmd := policyCmd.Command("remove", msgPrinter.Sprintf("Remove the node's policy."))
@@ -401,7 +407,7 @@ Environment Variables:
 	deploycheckLong := deploycheckCmd.Flag("long", msgPrinter.Sprintf("Show policies and userinput used for the compatibility checking.")).Short('l').Bool()
 	policyCompCmd := deploycheckCmd.Command("policy", msgPrinter.Sprintf("Check policy compatibility."))
 	policyCompNodeArch := policyCompCmd.Flag("arch", msgPrinter.Sprintf("The architecture of the node. It is required when -n is not specified. If omitted, the service of all the architectures referenced in the deployment policy will be checked for compatibility.")).Short('a').String()
-	policyCompNodeType := policyCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is 'device'.")).Short('t').Default("device").String()
+	policyCompNodeType := policyCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is the type of the provided node or the node that current device is registered with, if omitted.")).Short('t').String()
 	policyCompNodeId := policyCompCmd.Flag("node-id", msgPrinter.Sprintf("The Horizon exchange node ID. Mutually exclusive with --node-pol. If omitted, the node ID that the current device is registered with will be used. If you don't prepend it with the organization id, it will automatically be prepended with the -o value.")).Short('n').String()
 	policyCompNodePolFile := policyCompCmd.Flag("node-pol", msgPrinter.Sprintf("The JSON input file name containing the node policy. Mutually exclusive with -n.")).String()
 	policyCompBPolId := policyCompCmd.Flag("business-pol-id", "").Hidden().String()
@@ -412,7 +418,7 @@ Environment Variables:
 	policyCompSvcFile := policyCompCmd.Flag("service", msgPrinter.Sprintf("(optional) The JSON input file name containing the service definition. Mutually exclusive with -b. If omitted, the service referenced in the deployment policy is retrieved from the Exchange. This flag can be repeated to specify different versions of the service.")).Strings()
 	userinputCompCmd := deploycheckCmd.Command("userinput", msgPrinter.Sprintf("Check user input compatibility."))
 	userinputCompNodeArch := userinputCompCmd.Flag("arch", msgPrinter.Sprintf("The architecture of the node. It is required when -n is not specified. If omitted, the service of all the architectures referenced in the deployment policy or pattern will be checked for compatibility.")).Short('a').String()
-	userinputCompNodeType := userinputCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is 'device'.")).Short('t').Default("device").String()
+	userinputCompNodeType := userinputCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is the type of the provided node or the node that current device is registered with, if omitted.")).Short('t').String()
 	userinputCompNodeId := userinputCompCmd.Flag("node-id", msgPrinter.Sprintf("The Horizon exchange node ID. Mutually exclusive with --node-ui. If omitted, the node ID that the current device is registered with will be used. If you don't prepend it with the organization id, it will automatically be prepended with the -o value.")).Short('n').String()
 	userinputCompNodeUIFile := userinputCompCmd.Flag("node-ui", msgPrinter.Sprintf("The JSON input file name containing the node user input. Mutually exclusive with -n.")).String()
 	userinputCompBPolId := userinputCompCmd.Flag("business-pol-id", "").Hidden().String()
@@ -424,7 +430,7 @@ Environment Variables:
 	userinputCompPatternFile := userinputCompCmd.Flag("pattern", msgPrinter.Sprintf("The JSON input file name containing the pattern. Mutually exclusive with -p, -b and -B.")).Short('P').String()
 	allCompCmd := deploycheckCmd.Command("all", msgPrinter.Sprintf("Check all compatibilities for a deployment."))
 	allCompNodeArch := allCompCmd.Flag("arch", msgPrinter.Sprintf("The architecture of the node. It is required when -n is not specified. If omitted, the service of all the architectures referenced in the deployment policy or pattern will be checked for compatibility.")).Short('a').String()
-	allCompNodeType := allCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is 'device'.")).Short('t').Default("device").String()
+	allCompNodeType := allCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is the type of the provided node or the node that current device is registered with, if omitted.")).Short('t').String()
 	allCompNodeId := allCompCmd.Flag("node-id", msgPrinter.Sprintf("The Horizon exchange node ID. Mutually exclusive with --node-pol and --node-ui. If omitted, the node ID that the current device is registered with will be used. If you don't prepend it with the organization id, it will automatically be prepended with the -o value.")).Short('n').String()
 	allCompNodePolFile := allCompCmd.Flag("node-pol", msgPrinter.Sprintf("The JSON input file name containing the node policy. Mutually exclusive with -n, -p and -P.")).String()
 	allCompNodeUIFile := allCompCmd.Flag("node-ui", msgPrinter.Sprintf("The JSON input file name containing the node user input. Mutually exclusive with -n.")).String()
@@ -522,6 +528,9 @@ Environment Variables:
 	devServiceValidateCmd := devServiceCmd.Command("verify", msgPrinter.Sprintf("Validate the project for completeness and schema compliance."))
 	devServiceVerifyUserInputFile := devServiceValidateCmd.Flag("userInputFile", msgPrinter.Sprintf("File containing user input values for verification of a project. If omitted, the userinput file for the project will be used.")).Short('f').String()
 	devServiceValidateCmdUserPw := devServiceValidateCmd.Flag("user-pw", msgPrinter.Sprintf("Horizon Exchange user credentials to query exchange resources. Specify it when you want to automatically fetch the missing dependent services from the Exchange. The default is HZN_EXCHANGE_USER_AUTH environment variable. If you don't prepend it with the user's org, it will automatically be prepended with the value of the HZN_ORG_ID environment variable.")).Short('u').PlaceHolder("USER:PW").String()
+	devServiceLogCmd := devServiceCmd.Command("log", msgPrinter.Sprintf("Show the container/system logs for a service."))
+	devServiceLogCmdServiceName := devServiceLogCmd.Flag("service", msgPrinter.Sprintf("The name of the service whose log records should be displayed. The service name is the same as the url field of a service definition.")).Short('s').String()
+	devServiceLogCmdTail := devServiceLogCmd.Flag("tail", msgPrinter.Sprintf("Continuously polls the service's logs to display the most recent records, similar to tail -F behavior.")).Short('f').Bool()
 
 	devDependencyCmd := devCmd.Command("dependency", msgPrinter.Sprintf("For working with project dependencies."))
 	devDependencyCmdSpecRef := devDependencyCmd.Flag("specRef", msgPrinter.Sprintf("The URL of the service dependency in the Exchange. Mutually exclusive with -p and --url.")).Short('s').String()
@@ -583,8 +592,10 @@ Environment Variables:
 	mmsStatusCmd := mmsCmd.Command("status", msgPrinter.Sprintf("Display the status of the Horizon Model Management Service."))
 	mmsObjectCmd := mmsCmd.Command("object", msgPrinter.Sprintf("List and manage objects in the Horizon Model Management Service."))
 	mmsObjectListCmd := mmsObjectCmd.Command("list", msgPrinter.Sprintf("List objects in the Horizon Model Management Service."))
-	mmsObjectListType := mmsObjectListCmd.Flag("objectType", msgPrinter.Sprintf("The type of the object to list.")).Short('t').String()
-	mmsObjectListId := mmsObjectListCmd.Flag("objectId", msgPrinter.Sprintf("The id of the object to list. This flag is optional. Omit this flag to list all objects of a given object type.")).Short('i').String()
+	mmsObjectListType := mmsObjectListCmd.Flag("type", msgPrinter.Sprintf("The type of the object to list.")).Short('t').String()
+	mmsObjectListObjType := mmsObjectListCmd.Flag("objectType", "").Hidden().String()
+	mmsObjectListId := mmsObjectListCmd.Flag("id", msgPrinter.Sprintf("The id of the object to list. This flag is optional. Omit this flag to list all objects of a given object type.")).Short('i').String()
+	mmsObjectListObjId := mmsObjectListCmd.Flag("objectId", "").Hidden().String()
 	mmsObjectListDestinationPolicy := mmsObjectListCmd.Flag("policy", msgPrinter.Sprintf("Specify true to show only objects using policy. Specify false to show only objects not using policy. If this flag is omitted, both kinds of objects are shown.")).Short('p').String()
 	mmsObjectListDPService := mmsObjectListCmd.Flag("service", msgPrinter.Sprintf("List mms objects using policy that are targetted for the given service. Service specified in the format service-org/service-name.")).Short('s').String()
 	mmsObjectListDPProperty := mmsObjectListCmd.Flag("property", msgPrinter.Sprintf("List mms objects using policy that reference the given property name.")).String()
@@ -601,7 +612,7 @@ Environment Variables:
 	mmsObjectPublishType := mmsObjectPublishCmd.Flag("type", msgPrinter.Sprintf("The type of the object to publish. This flag must be used with -i. It is mutually exclusive with -m")).Short('t').String()
 	mmsObjectPublishId := mmsObjectPublishCmd.Flag("id", msgPrinter.Sprintf("The id of the object to publish. This flag must be used with -t. It is mutually exclusive with -m")).Short('i').String()
 	mmsObjectPublishPat := mmsObjectPublishCmd.Flag("pattern", msgPrinter.Sprintf("If you want the object to be deployed on nodes using a given pattern, specify it using this flag. This flag is optional and can only be used with --type and --id. It is mutually exclusive with -m")).Short('p').String()
-	mmsObjectPublishDef := mmsObjectPublishCmd.Flag("def", msgPrinter.Sprintf("The definition of the object to publish. A blank template can be obtained from the 'hzn mss object new' command.")).Short('m').String()
+	mmsObjectPublishDef := mmsObjectPublishCmd.Flag("def", msgPrinter.Sprintf("The definition of the object to publish. A blank template can be obtained from the 'hzn mss object new' command. Specify -m- to read from stdin.")).Short('m').String()
 	mmsObjectPublishObj := mmsObjectPublishCmd.Flag("object", msgPrinter.Sprintf("The object (in the form of a file) to publish. This flag is optional so that you can update only the object's definition.")).Short('f').String()
 	mmsObjectDeleteCmd := mmsObjectCmd.Command("delete", msgPrinter.Sprintf("Delete an object in the Horizon Model Management Service, making it unavailable for services deployed on nodes."))
 	mmsObjectDeleteType := mmsObjectDeleteCmd.Flag("type", msgPrinter.Sprintf("The type of the object to delete.")).Short('t').Required().String()
@@ -758,6 +769,13 @@ Environment Variables:
 	if strings.HasPrefix(fullCmd, "mms") {
 		mmsOrg = cliutils.RequiredWithDefaultEnvVar(mmsOrg, "HZN_ORG_ID", msgPrinter.Sprintf("organization ID must be specified with either the -o flag or HZN_ORG_ID"))
 		mmsUserPw = cliutils.RequiredWithDefaultEnvVar(mmsUserPw, "HZN_EXCHANGE_USER_AUTH", msgPrinter.Sprintf("exchange user authentication must be specified with either the -u flag or HZN_EXCHANGE_USER_AUTH"))
+
+		if *mmsObjectListId == "" {
+			mmsObjectListId = mmsObjectListObjId
+		}
+		if *mmsObjectListType == "" {
+			mmsObjectListType = mmsObjectListObjType
+		}
 	}
 
 	// For the voucher import command family, make sure that org and exchange credentials are specified in some way.
@@ -808,11 +826,11 @@ Environment Variables:
 	case exOrgListCmd.FullCommand():
 		exchange.OrgList(*exOrg, *exUserPw, *exOrgListOrg, *exOrgListLong)
 	case exOrgCreateCmd.FullCommand():
-		exchange.OrgCreate(*exOrg, *exUserPw, *exOrgCreateOrg, *exOrgCreateLabel, *exOrgCreateDesc, *exOrgCreateHBMin, *exOrgCreateHBMax, *exOrgCreateHBAdjust)
+		exchange.OrgCreate(*exOrg, *exUserPw, *exOrgCreateOrg, *exOrgCreateLabel, *exOrgCreateDesc, *exOrgCreateTags, *exOrgCreateHBMin, *exOrgCreateHBMax, *exOrgCreateHBAdjust, *exOrgCreateMaxNodes, *exOrgCreateAddToAgbot)
 	case exOrgUpdateCmd.FullCommand():
-		exchange.OrgUpdate(*exOrg, *exUserPw, *exOrgUpdateOrg, *exOrgUpdateLabel, *exOrgUpdateDesc, *exOrgUpdateHBMin, *exOrgUpdateHBMax, *exOrgUpdateHBAdjust)
+		exchange.OrgUpdate(*exOrg, *exUserPw, *exOrgUpdateOrg, *exOrgUpdateLabel, *exOrgUpdateDesc, *exOrgUpdateTags, *exOrgUpdateHBMin, *exOrgUpdateHBMax, *exOrgUpdateHBAdjust, *exOrgUpdateMaxNodes)
 	case exOrgDelCmd.FullCommand():
-		exchange.OrgDel(*exOrg, *exUserPw, *exOrgDelOrg, *exOrgDelForce)
+		exchange.OrgDel(*exOrg, *exUserPw, *exOrgDelOrg, *exOrgDelFromAgbot, *exOrgDelForce)
 
 	case exUserListCmd.FullCommand():
 		exchange.UserList(*exOrg, *exUserPw, *exUserListUser, *exUserListAll, *exUserListNamesOnly)
@@ -998,6 +1016,8 @@ Environment Variables:
 		dev.ServiceStopTest(*devHomeDirectory)
 	case devServiceValidateCmd.FullCommand():
 		dev.ServiceValidate(*devHomeDirectory, *devServiceVerifyUserInputFile, []string{}, "", *devServiceValidateCmdUserPw)
+	case devServiceLogCmd.FullCommand():
+		dev.ServiceLog(*devHomeDirectory, *devServiceLogCmdServiceName, *devServiceLogCmdTail)
 	case devDependencyFetchCmd.FullCommand():
 		dev.DependencyFetch(*devHomeDirectory, *devDependencyFetchCmdProject, *devDependencyCmdSpecRef, *devDependencyCmdURL, *devDependencyCmdOrg, *devDependencyCmdVersion, *devDependencyCmdArch, *devDependencyFetchCmdUserPw, *devDependencyFetchCmdUserInputFile)
 	case devDependencyListCmd.FullCommand():

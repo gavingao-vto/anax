@@ -7,14 +7,14 @@ import (
 	"github.com/open-horizon/anax/semanticversion"
 )
 
-// the real version will be set by the horizon-deb-packager build process
-const HORIZON_VERSION = "local build"
+// The real version will be set by the Makefile at build time. This must be a var, not const, so -ldflags can modify it.
+var HORIZON_VERSION = "local build"
 
 // the minimum exchange version
-const MINIMUM_EXCHANGE_VERSION = "2.23.0"
+const MINIMUM_EXCHANGE_VERSION = "2.44.0"
 
 // the preferred exchange version
-const PREFERRED_EXCHANGE_VERSION = "2.23.0"
+const PREFERRED_EXCHANGE_VERSION = "2.44.0"
 
 // This function verifies the exchange version to make sure it meets the requirement.
 // It return nil if the exchange version is okay.

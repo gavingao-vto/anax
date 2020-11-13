@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -510,7 +511,12 @@ func isGoodCode(actualHttpCode int, goodHttpCodes []int) bool {
 func printHorizonRestError(apiMethod string, err error) {
 	msg := ""
 	if os.Getenv("HORIZON_URL") == "" {
-		msg = i18n.GetMessagePrinter().Sprintf("Can't connect to the Horizon REST API to run %s. Run 'systemctl status horizon' to check if the Horizon agent is running. Or set HORIZON_URL to connect to another local port that is connected to a remote Horizon agent via a ssh tunnel. Specific error is: %v", apiMethod, err)
+		statusCommand := "systemctl status horizon"
+		statusURL := "curl http://localhost:8081/status"
+		if runtime.GOOS == "darwin" {
+			statusCommand = "docker ps | grep horizon"
+		}
+		msg = i18n.GetMessagePrinter().Sprintf("Can't connect to the Horizon REST API to run %s. Run '%s' to check if the Horizon agent is running. Or run '%s' to check the Horizon agent status. Or set HORIZON_URL to connect to another local port that is connected to a remote Horizon agent via a ssh tunnel. Specific error is: %v", apiMethod, statusCommand, statusURL, err)
 	} else {
 		msg = i18n.GetMessagePrinter().Sprintf("Can't connect to the Horizon REST API to run %s. Maybe the ssh tunnel associated with that port is down? Or maybe the remote Horizon agent at the other end of that tunnel is down. Specific error is: %v", apiMethod, err)
 	}
@@ -537,6 +543,7 @@ func HorizonGet(urlSuffix string, goodHttpCodes []int, structure interface{}, qu
 	if err != nil {
 		Fatal(HTTP_ERROR, msgPrinter.Sprintf("%s new request failed: %v", apiMsg, err))
 	}
+	req.Close = true
 	req.Header.Add("Accept", "application/json")
 
 	// add the language request to the http header
@@ -550,7 +557,12 @@ func HorizonGet(urlSuffix string, goodHttpCodes []int, structure interface{}, qu
 	if err != nil {
 		if quiet {
 			if os.Getenv("HORIZON_URL") == "" {
-				retError = fmt.Errorf(msgPrinter.Sprintf("Can't connect to the Horizon REST API to run %s. Run 'systemctl status horizon' to check if the Horizon agent is running. Or set HORIZON_URL to connect to another local port that is connected to a remote Horizon agent via a ssh tunnel. Specific error is: %v", apiMsg, err))
+				statusCommand := "systemctl status horizon"
+				statusURL := "curl http://localhost:8081/status"
+				if runtime.GOOS == "darwin" {
+					statusCommand = "docker ps | grep horizon"
+				}
+				retError = fmt.Errorf(msgPrinter.Sprintf("Can't connect to the Horizon REST API to run %s. Run '%s' to check if the Horizon agent is running. Or run '%s' to check the Horizon agent status. Or set HORIZON_URL to connect to another local port that is connected to a remote Horizon agent via a ssh tunnel. Specific error is: %v", apiMsg, statusCommand, statusURL, err))
 			} else {
 				retError = fmt.Errorf(msgPrinter.Sprintf("Can't connect to the Horizon REST API to run %s. Maybe the ssh tunnel associated with that port is down? Or maybe the remote Horizon agent at the other end of that tunnel is down. Specific error is: %v", apiMsg, err))
 			}
@@ -623,11 +635,18 @@ func HorizonDelete(urlSuffix string, goodHttpCodes []int, expectedHttpErrorCodes
 			Fatal(HTTP_ERROR, msgPrinter.Sprintf("%s new request failed: %v", apiMsg, err))
 		}
 	}
+	req.Close = true
+
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		if quiet {
 			if os.Getenv("HORIZON_URL") == "" {
-				retError = fmt.Errorf(msgPrinter.Sprintf("Can't connect to the Horizon REST API to run %s. Run 'systemctl status horizon' to check if the Horizon agent is running. Or set HORIZON_URL to connect to another local port that is connected to a remote Horizon agent via a ssh tunnel. Specific error is: %v", apiMsg, err))
+				statusCommand := "systemctl status horizon"
+				statusURL := "curl http://localhost:8081/status"
+				if runtime.GOOS == "darwin" {
+					statusCommand = "docker ps | grep horizon"
+				}
+				retError = fmt.Errorf(msgPrinter.Sprintf("Can't connect to the Horizon REST API to run %s. Run '%s' to check if the Horizon agent is running. Or run '%s' to check the Horizon agent status. Or set HORIZON_URL to connect to another local port that is connected to a remote Horizon agent via a ssh tunnel. Specific error is: %v", apiMsg, statusCommand, statusURL, err))
 			} else {
 				retError = fmt.Errorf(msgPrinter.Sprintf("Can't connect to the Horizon REST API to run %s. Maybe the ssh tunnel associated with that port is down? Or maybe the remote Horizon agent at the other end of that tunnel is down. Specific error is: %v", apiMsg, err))
 			}
@@ -701,6 +720,7 @@ func HorizonPutPost(method string, urlSuffix string, goodHttpCodes []int, body i
 	} else if err != nil {
 		return 0, "", err
 	}
+	req.Close = true
 	req.Header.Add("Accept", "application/json")
 	if bodyIsBytes {
 		req.Header.Add("Content-Length", strconv.Itoa(len(jsonBytes)))
@@ -1048,7 +1068,14 @@ func createRequestBody(body interface{}, apiMsg string) (io.Reader, int, int) {
 }
 
 // invoke rest api call with retry
-func InvokeRestApi(httpClient *http.Client, method string, url string, credentials string, body interface{}, service string, apiMsg string) *http.Response {
+func InvokeRestApi(httpClient *http.Client, method string, urlPath string, credentials string, body interface{}, service string, apiMsg string) *http.Response {
+
+	// encode the url so that it can accept unicode
+	urlObj, errUrl := url.Parse(urlPath)
+	if errUrl != nil {
+		Fatal(CLI_INPUT_ERROR, fmt.Sprintf("Malformed URL: %v. %v", urlPath, errUrl))
+	}
+	urlObj.RawQuery = urlObj.Query().Encode()
 
 	if err := TrustIcpCert(httpClient); err != nil {
 		Fatal(FILE_IO_ERROR, err.Error())
@@ -1098,11 +1125,12 @@ func InvokeRestApi(httpClient *http.Client, method string, url string, credentia
 		}
 
 		// Create the request and run it
-		req, err := http.NewRequest(method, url, requestBody)
+		req, err := http.NewRequest(method, urlObj.String(), requestBody)
 		if err != nil {
 			Fatal(HTTP_ERROR, msgPrinter.Sprintf("%s new request failed: %v", apiMsg, err))
 		}
 
+		req.Close = true
 		req.Header.Add("Accept", "application/json")
 
 		// for PUT/PATCH/POST
