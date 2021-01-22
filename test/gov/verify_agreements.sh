@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# include node status verification function
+source ./check_node_status.sh
+
 PREFIX="Verifying agreements:"
 
 echo -e "${PREFIX} starting"
@@ -17,9 +20,15 @@ function verifyAgreements {
             fi
         fi
 
+        if [ "${EXCH_APP_HOST}" = "http://exchange-api:8080/v1" ]; then
+          TIMEOUT_MUL=1
+        else
+          TIMEOUT_MUL=3
+        fi
+
         # Look for agreements to appear.
         AG_LOOP_CNT=0
-        while [ $AG_LOOP_CNT -le  $(expr 48 + 12 \* $TARGET_NUM_AG) ]
+        while [ $AG_LOOP_CNT -le  $(expr $(expr 48 + 12 \* $TARGET_NUM_AG) \* $TIMEOUT_MUL) ]
         do
                 echo -e "${PREFIX} waiting for ${TARGET_NUM_AG} agreement(s)"
 
@@ -293,6 +302,13 @@ agreementsReached agreement_execution_start_time
 
 # Check to make sure service are running correctly.
 verifyServices
+
+# Verify exchange node status
+checkNodeStatus true
+if [ $? != 0 ]; then
+    echo "Node status verification failed"
+    exit 1
+fi
 
 # Do data verification
 if [ "${PATTERN}" == "sall" ]; then

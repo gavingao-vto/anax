@@ -152,6 +152,9 @@ type Service struct {
 	EphemeralPorts   []Port               `json:"ephemeral_ports,omitempty"`
 	SpecificPorts    []docker.PortBinding `json:"specific_ports,omitempty"` // obselete. for backward compatibility only, new way should use ports instead.
 	Entrypoint       []string             `json:"entrypoint,omitempty"`
+	MaxMemoryMb      int64                `json:"max_memory_mb,omitempty"`
+	MaxCPUs          float32              `json:"max_cpus,omitempty"`
+	LogDriver        string               `json:"log_driver,omitempty"`     // Docker's log-driver. Syslog will be used as default driver
 }
 
 func (s *Service) AddFilesystemBinding(bind string) {

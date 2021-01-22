@@ -4,6 +4,7 @@ package main
 import (
 	"flag"
 	"github.com/open-horizon/anax/cli/sdo"
+	"github.com/open-horizon/anax/version"
 	"os"
 	"strings"
 
@@ -280,6 +281,7 @@ Environment Variables:
 	exSvcRegistryTokens := exServicePublishCmd.Flag("registry-token", msgPrinter.Sprintf("Docker registry domain and auth that should be stored with the service, to enable the Horizon edge node to access the service's docker images. This flag can be repeated, and each flag should be in the format: registry:user:token")).Short('r').Strings()
 	exSvcOverwrite := exServicePublishCmd.Flag("overwrite", msgPrinter.Sprintf("Overwrite the existing version if the service exists in the Exchange. It will skip the 'do you want to overwrite' prompt.")).Short('O').Bool()
 	exSvcPolicyFile := exServicePublishCmd.Flag("service-policy-file", msgPrinter.Sprintf("The path of the service policy JSON file to be used for the service to be published. This flag is optional")).Short('p').String()
+	exSvcPublic := exServicePublishCmd.Flag("public", msgPrinter.Sprintf("Whether the service is visible to users outside of the organization. This flag is optional. If left unset, the service will default to whatever the metadata has set. If the service definition has also not set the public field, then the service will by default not be public.")).String()
 	exServiceVerifyCmd := exServiceCmd.Command("verify", msgPrinter.Sprintf("Verify the signatures of a service resource in the Horizon Exchange."))
 	exVerService := exServiceVerifyCmd.Arg("service", msgPrinter.Sprintf("The service to verify.")).Required().String()
 	exServiceVerifyNodeIdTok := exServiceVerifyCmd.Flag("node-id-tok", msgPrinter.Sprintf("The Horizon Exchange node ID and token to be used as credentials to query and modify the node resources if -u flag is not specified. HZN_EXCHANGE_NODE_AUTH will be used as a default for -n. If you don't prepend it with the node's org, it will automatically be prepended with the -o value.")).Short('n').PlaceHolder("ID:TOK").String()
@@ -407,7 +409,7 @@ Environment Variables:
 	deploycheckLong := deploycheckCmd.Flag("long", msgPrinter.Sprintf("Show policies and userinput used for the compatibility checking.")).Short('l').Bool()
 	policyCompCmd := deploycheckCmd.Command("policy", msgPrinter.Sprintf("Check policy compatibility."))
 	policyCompNodeArch := policyCompCmd.Flag("arch", msgPrinter.Sprintf("The architecture of the node. It is required when -n is not specified. If omitted, the service of all the architectures referenced in the deployment policy will be checked for compatibility.")).Short('a').String()
-	policyCompNodeType := policyCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is the type of the provided node or the node that current device is registered with, if omitted.")).Short('t').String()
+	policyCompNodeType := policyCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default value is the type of the node provided by -n or current registered device, if omitted.")).Short('t').String()
 	policyCompNodeId := policyCompCmd.Flag("node-id", msgPrinter.Sprintf("The Horizon exchange node ID. Mutually exclusive with --node-pol. If omitted, the node ID that the current device is registered with will be used. If you don't prepend it with the organization id, it will automatically be prepended with the -o value.")).Short('n').String()
 	policyCompNodePolFile := policyCompCmd.Flag("node-pol", msgPrinter.Sprintf("The JSON input file name containing the node policy. Mutually exclusive with -n.")).String()
 	policyCompBPolId := policyCompCmd.Flag("business-pol-id", "").Hidden().String()
@@ -418,7 +420,7 @@ Environment Variables:
 	policyCompSvcFile := policyCompCmd.Flag("service", msgPrinter.Sprintf("(optional) The JSON input file name containing the service definition. Mutually exclusive with -b. If omitted, the service referenced in the deployment policy is retrieved from the Exchange. This flag can be repeated to specify different versions of the service.")).Strings()
 	userinputCompCmd := deploycheckCmd.Command("userinput", msgPrinter.Sprintf("Check user input compatibility."))
 	userinputCompNodeArch := userinputCompCmd.Flag("arch", msgPrinter.Sprintf("The architecture of the node. It is required when -n is not specified. If omitted, the service of all the architectures referenced in the deployment policy or pattern will be checked for compatibility.")).Short('a').String()
-	userinputCompNodeType := userinputCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is the type of the provided node or the node that current device is registered with, if omitted.")).Short('t').String()
+	userinputCompNodeType := userinputCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default value is the type of the node provided by -n or current registered device, if omitted.")).Short('t').String()
 	userinputCompNodeId := userinputCompCmd.Flag("node-id", msgPrinter.Sprintf("The Horizon exchange node ID. Mutually exclusive with --node-ui. If omitted, the node ID that the current device is registered with will be used. If you don't prepend it with the organization id, it will automatically be prepended with the -o value.")).Short('n').String()
 	userinputCompNodeUIFile := userinputCompCmd.Flag("node-ui", msgPrinter.Sprintf("The JSON input file name containing the node user input. Mutually exclusive with -n.")).String()
 	userinputCompBPolId := userinputCompCmd.Flag("business-pol-id", "").Hidden().String()
@@ -430,7 +432,7 @@ Environment Variables:
 	userinputCompPatternFile := userinputCompCmd.Flag("pattern", msgPrinter.Sprintf("The JSON input file name containing the pattern. Mutually exclusive with -p, -b and -B.")).Short('P').String()
 	allCompCmd := deploycheckCmd.Command("all", msgPrinter.Sprintf("Check all compatibilities for a deployment."))
 	allCompNodeArch := allCompCmd.Flag("arch", msgPrinter.Sprintf("The architecture of the node. It is required when -n is not specified. If omitted, the service of all the architectures referenced in the deployment policy or pattern will be checked for compatibility.")).Short('a').String()
-	allCompNodeType := allCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default is the type of the provided node or the node that current device is registered with, if omitted.")).Short('t').String()
+	allCompNodeType := allCompCmd.Flag("node-type", msgPrinter.Sprintf("The node type. The valid values are 'device' and 'cluster'. The default value is the type of the node provided by -n or current registered device, if omitted.")).Short('t').String()
 	allCompNodeId := allCompCmd.Flag("node-id", msgPrinter.Sprintf("The Horizon exchange node ID. Mutually exclusive with --node-pol and --node-ui. If omitted, the node ID that the current device is registered with will be used. If you don't prepend it with the organization id, it will automatically be prepended with the -o value.")).Short('n').String()
 	allCompNodePolFile := allCompCmd.Flag("node-pol", msgPrinter.Sprintf("The JSON input file name containing the node policy. Mutually exclusive with -n, -p and -P.")).String()
 	allCompNodeUIFile := allCompCmd.Flag("node-ui", msgPrinter.Sprintf("The JSON input file name containing the node user input. Mutually exclusive with -n.")).String()
@@ -670,7 +672,12 @@ Environment Variables:
 
 	credToUse := ""
 	if strings.HasPrefix(fullCmd, "exchange") {
-		exOrg = cliutils.RequiredWithDefaultEnvVar(exOrg, "HZN_ORG_ID", msgPrinter.Sprintf("organization ID must be specified with either the -o flag or HZN_ORG_ID"))
+		exOrg = cliutils.WithDefaultEnvVar(exOrg, "HZN_ORG_ID")
+
+		// Allow undefined org for 'exchange org' commands
+		if *exOrg == "" && !strings.HasPrefix(fullCmd, "exchange org") {
+			cliutils.Fatal(cliutils.CLI_INPUT_ERROR, msgPrinter.Sprintf("organization ID must be specified with either the -o flag or HZN_ORG_ID"))
+		}
 
 		// some hzn exchange commands can take either -u user:pw or -n nodeid:token as credentials.
 		switch subCmd := strings.TrimPrefix(fullCmd, "exchange "); subCmd {
@@ -732,6 +739,12 @@ Environment Variables:
 			// get HZN_EXCHANGE_USER_AUTH as default if exUserPw is empty
 			exUserPw = cliutils.RequiredWithDefaultEnvVar(exUserPw, "HZN_EXCHANGE_USER_AUTH", msgPrinter.Sprintf("exchange user authentication must be specified with either the -u flag or HZN_EXCHANGE_USER_AUTH"))
 		}
+
+		if exVersion := exchange.LoadExchangeVersion(false, *exOrg, credToUse, *exUserPw); exVersion != "" {
+			if err := version.VerifyExchangeVersion1(exVersion, false); err != nil {
+				cliutils.Fatal(cliutils.CLI_GENERAL_ERROR, err.Error())
+			}
+		}
 	}
 
 	if strings.HasPrefix(fullCmd, "register") {
@@ -740,6 +753,15 @@ Environment Variables:
 
 		// use HZN_EXCHANGE_NODE_AUTH for -n and trim the org
 		nodeIdTok = cliutils.WithDefaultEnvVar(nodeIdTok, "HZN_EXCHANGE_NODE_AUTH")
+
+		// use HZN_ORG_ID or org provided by -o for version check
+		verCheckOrg := cliutils.WithDefaultEnvVar(org, "HZN_ORG_ID")
+
+		if exVersion := exchange.LoadExchangeVersion(false, *verCheckOrg, *userPw, *nodeIdTok); exVersion != "" {
+			if err := version.VerifyExchangeVersion1(exVersion, false); err != nil {
+				cliutils.Fatal(cliutils.CLI_GENERAL_ERROR, err.Error())
+			}
+		}
 	}
 
 	if strings.HasPrefix(fullCmd, "deploycheck") {
@@ -762,6 +784,12 @@ Environment Variables:
 		}
 		if *allCompBPolFile == "" {
 			allCompBPolFile = allCompDepPolFile
+		}
+
+		if exVersion := exchange.LoadExchangeVersion(false, *deploycheckOrg, *deploycheckUserPw); exVersion != "" {
+			if err := version.VerifyExchangeVersion1(exVersion, false); err != nil {
+				cliutils.Fatal(cliutils.CLI_GENERAL_ERROR, err.Error())
+			}
 		}
 	}
 
@@ -903,7 +931,7 @@ Environment Variables:
 	case exServiceListCmd.FullCommand():
 		exchange.ServiceList(*exOrg, credToUse, *exService, !*exServiceLong, *exSvcOpYamlFilePath, *exSvcOpYamlForce)
 	case exServicePublishCmd.FullCommand():
-		exchange.ServicePublish(*exOrg, *exUserPw, *exSvcJsonFile, *exSvcPrivKeyFile, *exSvcPubPubKeyFile, *exSvcPubDontTouchImage, *exSvcPubPullImage, *exSvcRegistryTokens, *exSvcOverwrite, *exSvcPolicyFile)
+		exchange.ServicePublish(*exOrg, *exUserPw, *exSvcJsonFile, *exSvcPrivKeyFile, *exSvcPubPubKeyFile, *exSvcPubDontTouchImage, *exSvcPubPullImage, *exSvcRegistryTokens, *exSvcOverwrite, *exSvcPolicyFile, *exSvcPublic)
 	case exServiceVerifyCmd.FullCommand():
 		exchange.ServiceVerify(*exOrg, credToUse, *exVerService, *exSvcPubKeyFile)
 	case exSvcDelCmd.FullCommand():

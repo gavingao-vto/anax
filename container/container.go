@@ -11,6 +11,7 @@ import (
 	"github.com/coreos/go-iptables/iptables"
 	docker "github.com/fsouza/go-dockerclient"
 	"github.com/golang/glog"
+	"github.com/open-horizon/anax/cli/cliutils"
 	"github.com/open-horizon/anax/config"
 	"github.com/open-horizon/anax/containermessage"
 	"github.com/open-horizon/anax/cutil"
@@ -264,10 +265,16 @@ func (w *ContainerWorker) finalizeDeployment(agreementId string, deployment *con
 
 		var logConfig docker.LogConfig
 
+		// Use syslog log driver by default
+		logDriver := "syslog"
+		if service.LogDriver != "" {
+			logDriver = service.LogDriver
+		}
+
 		if !deployment.ServicePattern.IsShared("singleton", serviceName) {
 			labels[LABEL_PREFIX+".agreement_id"] = agreementId
 			logConfig = docker.LogConfig{
-				Type: "syslog",
+				Type: logDriver,
 				Config: map[string]string{
 					"tag": fmt.Sprintf("workload-%v_%v", strings.ToLower(agreementId), serviceName),
 				},
@@ -279,12 +286,18 @@ func (w *ContainerWorker) finalizeDeployment(agreementId string, deployment *con
 			}
 
 			logConfig = docker.LogConfig{
-				Type: "syslog",
+				Type: logDriver,
 				Config: map[string]string{
 					"tag": fmt.Sprintf("workload-%v_%v", "singleton", logName),
 				},
 			}
 		}
+
+		// Some log drivers don't support tagging, the "tag" config should be removed for them
+		if !cliutils.LoggingDriverSupportsTagging(logDriver) {
+			delete(logConfig.Config, "tag")
+		}
+
 		serviceConfig := &persistence.ServiceConfig{
 			Config: docker.Config{
 				Image:        service.Image,
@@ -310,6 +323,14 @@ func (w *ContainerWorker) finalizeDeployment(agreementId string, deployment *con
 				Binds:           service.Binds,
 				Tmpfs:           service.Tmpfs,
 			},
+		}
+
+		// Set CPU and memory limits if they are defined in the service config
+		if service.MaxMemoryMb != 0 {
+			serviceConfig.HostConfig.Memory = service.MaxMemoryMb * 1024 * 1024
+		}
+		if service.MaxCPUs != 0 {
+			serviceConfig.HostConfig.NanoCPUs = int64(service.MaxCPUs * 1000000000)
 		}
 
 		// Mark each container as infrastructure if the deployment description indicates infrastructure
@@ -1158,6 +1179,8 @@ func (b *ContainerWorker) ResourcesCreate(agreementId string, agreementProtocol 
 		Services: make(map[string]persistence.ServiceConfig, 0),
 	}
 
+	// New network will be created if there is at least one service without 'network:host' mode
+	newNetworkNeeded := false
 	for serviceName, servicePair := range servicePairs {
 		if image, err := b.client.InspectImage(servicePair.serviceConfig.Config.Image); err != nil {
 			return nil, fail(nil, serviceName, fmt.Errorf("Failed to locally inspect image: %v. Please build and tag image locally or pull the image from your docker repository before running this command. Original error: %v", servicePair.serviceConfig.Config.Image, err))
@@ -1170,6 +1193,10 @@ func (b *ContainerWorker) ResourcesCreate(agreementId string, agreementProtocol 
 			shared[serviceName] = servicePair
 		} else {
 			private[serviceName] = servicePair
+
+			if servicePair.serviceConfig.HostConfig.NetworkMode != "host" {
+				newNetworkNeeded = true
+			}
 		}
 
 		ret.Services[serviceName] = *servicePair.serviceConfig
@@ -1260,25 +1287,27 @@ func (b *ContainerWorker) ResourcesCreate(agreementId string, agreementProtocol 
 
 	// from here on out, need to clean up bridge(s) if there is a problem
 
-	// If the network we want already exists, just use it.
 	var agBridge *docker.Network
-	if networks, err := b.client.ListNetworks(); err != nil {
-		glog.V(3).Infof("Unable to list networks: %v", err)
-		return nil, err
-	} else {
-		for _, net := range networks {
-			if isAnaxNetwork(&net, agreementId) {
-				glog.V(5).Infof("Found network %v already present", net.Name)
-				agBridge = &net
-				break
+	if newNetworkNeeded {
+		// If the network we want already exists, just use it.
+		if networks, err := b.client.ListNetworks(); err != nil {
+			glog.V(3).Infof("Unable to list networks: %v", err)
+			return nil, err
+		} else {
+			for _, net := range networks {
+				if isAnaxNetwork(&net, agreementId) {
+					glog.V(5).Infof("Found network %v already present", net.Name)
+					agBridge = &net
+					break
+				}
 			}
-		}
-		if agBridge == nil {
-			newBridge, err := mkBridge(b.client, agreementId, deployment.Infrastructure, false)
-			if err != nil {
-				return nil, err
+			if agBridge == nil {
+				newBridge, err := mkBridge(b.client, agreementId, deployment.Infrastructure, false)
+				if err != nil {
+					return nil, err
+				}
+				agBridge = newBridge
 			}
-			agBridge = newBridge
 		}
 	}
 

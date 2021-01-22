@@ -86,6 +86,9 @@ type UserExchangeReq struct {
 	Email    string `json:"email"`
 }
 
+var dockerDriversWithTagSupport = []string{"syslog", "journald", "gelf", "fluentd", "awslogs", "splunk"}
+var dockerDriversWithLoggingSupport = []string{"syslog", "journald", "local", "json-file"}
+
 func Verbose(msg string, args ...interface{}) {
 	if Opts.Verbose == nil {
 		// This happens before the command arguments are parsed. It saves the verbose message to a cache
@@ -1756,6 +1759,33 @@ func GetNewDockerImageName(image string, dontTouchImage bool, pullImage bool) st
 		}
 	}
 	return image
+}
+
+func LoggingDriverSupportsTagging(driverName string) bool {
+	for i := range dockerDriversWithTagSupport {
+		if dockerDriversWithTagSupport[i] == driverName {
+			return true
+		}
+	}
+	return false
+}
+
+func ChekServiceLogPossibility(logDriver string) (nonDefaultDriverUsed bool, err error) {
+	if logDriver == "" || logDriver == "syslog" {
+		return false, nil
+	}
+
+	for i, _ := range dockerDriversWithLoggingSupport {
+		if logDriver == dockerDriversWithLoggingSupport[i] {
+			return true, nil
+		}
+	}
+
+	// get message printer
+	msgPrinter := i18n.GetMessagePrinter()
+
+	return true, fmt.Errorf(msgPrinter.Sprintf("Provided log-driver (%s) does not support logs viewing. "+
+		"Logs are only available on the following drivers: %v", logDriver, dockerDriversWithLoggingSupport))
 }
 
 // progressReader is an io.Reader wrapper with progress reporting function
