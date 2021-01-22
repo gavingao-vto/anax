@@ -223,6 +223,8 @@ getArch(){
         ARCH="amd64"
     elif [[ "$uname" == "ppc64le" ]]; then
         ARCH="ppc64el"
+    elif [[ "$uname" =~ "riscv64" ]]; then
+        ARCH="riscv64"
     else
         (>&2 echo "Unknown architecture $uname")
         exit 1
